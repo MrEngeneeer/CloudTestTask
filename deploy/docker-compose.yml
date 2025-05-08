@@ -1,0 +1,31 @@
+version: '3.9'
+
+services:
+  backend1:
+    build:
+      context: ..
+      dockerfile: mock/Dockerfile
+    container_name: backend1
+    ports:
+      - "9001:9001"
+    command: ["./mock", "-name", "1"]
+
+  backend2:
+    build:
+      context: ..
+      dockerfile: mock/Dockerfile
+    container_name: backend2
+    ports:
+      - "9002:9001"
+    command: ["./mock", "-name", "2"]
+
+  balancer:
+    build:
+      context: ../
+      dockerfile: deploy/Dockerfile
+    container_name: balancer
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend1
+      - backend2

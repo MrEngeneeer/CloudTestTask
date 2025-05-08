@@ -1,0 +1,10 @@
+listen_addr: ":8080"
+backends:
+  - "http://backend1:9001"
+  - "http://backend2:9001"
+rate_limit:
+  capacity: 1000
+  refill_rate: 1000
+health_check:
+  path: "/health"
+  interval_sec: 2
