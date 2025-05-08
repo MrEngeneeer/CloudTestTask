@@ -41,7 +41,7 @@ func Run(cfg *config.Config) error {
 	})
 
 	rateProvider := ratelimit.NewDefaultLimitProvider(cfg.RateLimit.Capacity, cfg.RateLimit.RefillRate)
-
+	// endpoint для добавления особых лимитов клиента
 	mux.HandleFunc("/clients", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
@@ -65,7 +65,7 @@ func Run(cfg *config.Config) error {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
-
+	// endpoint для удаления особых лимитов клиента
 	mux.HandleFunc("/clients/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
