@@ -1,8 +1,10 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"balancer/internal/balancer"
@@ -38,9 +40,53 @@ func Run(cfg *config.Config) error {
 		p.ServeHTTP(w, r)
 	})
 
+	rateProvider := ratelimit.NewDefaultLimitProvider(cfg.RateLimit.Capacity, cfg.RateLimit.RefillRate)
+
+	mux.HandleFunc("/clients", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			var req struct {
+				ClientIp string `json:"client_ip"`
+				ratelimit.Limit
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "invalid JSON", http.StatusBadRequest)
+				return
+			}
+			err := rateProvider.AddClient(req.ClientIp, ratelimit.Limit{
+				Capacity: req.Capacity,
+				Rate:     req.Rate,
+			})
+			if err != nil {
+				http.Error(w, "error in client adding", http.StatusInternalServerError)
+			}
+			w.WriteHeader(http.StatusCreated)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/clients/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) != 2 || parts[0] != "clients" {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		clientIp := parts[1]
+		err := rateProvider.DeleteClient(clientIp)
+		if err != nil {
+			http.Error(w, "error in client deleting", http.StatusInternalServerError)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	handler := logging.Std.
 		Middleware(
-			ratelimit.NewMiddleware(&ratelimit.MockLimitProvider{Cap: cfg.RateLimit.Capacity, RefillRate: cfg.RateLimit.RefillRate})(
+			ratelimit.NewMiddleware(rateProvider)(
 				mux,
 			),
 		)

@@ -12,15 +12,40 @@ import (
 // ClientRateProvider возвращает параметры для BucketToken в зависимости от IP клиента
 type ClientRateProvider interface {
 	GetLimitForClient(clientIp string) (uint64, uint64)
+	AddClient(clientIp string, limit Limit) error
+	DeleteClient(clientIp string) error
 }
 
-type MockLimitProvider struct {
-	Cap        uint64
-	RefillRate uint64
+type Limit struct {
+	Capacity uint64 `json:"capacity"`
+	Rate     uint64 `json:"rate_per_sec"`
 }
 
-func (m *MockLimitProvider) GetLimitForClient(clientIp string) (uint64, uint64) {
-	return m.Cap, m.RefillRate
+type DefaultLimitProvider struct {
+	clients     sync.Map
+	defaultCap  uint64
+	defaultRate uint64
+}
+
+func (p *DefaultLimitProvider) GetLimitForClient(clientIp string) (uint64, uint64) {
+	if limits, ok := p.clients.Load(clientIp); ok {
+		return limits.(Limit).Capacity, limits.(Limit).Rate
+	}
+	return p.defaultCap, p.defaultRate
+}
+
+func (p *DefaultLimitProvider) AddClient(clientIp string, limit Limit) error {
+	p.clients.Store(clientIp, limit)
+	return nil
+}
+
+func (p *DefaultLimitProvider) DeleteClient(clientIp string) error {
+	p.clients.Delete(clientIp)
+	return nil
+}
+
+func NewDefaultLimitProvider(cap, rate uint64) ClientRateProvider {
+	return &DefaultLimitProvider{defaultCap: cap, defaultRate: rate}
 }
 
 // Bucket это структура, которая хранит токены клиента и говорит, есть ли свободные токены у клиента
